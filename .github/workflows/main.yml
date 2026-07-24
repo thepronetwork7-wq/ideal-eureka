@@ -1,17 +1,41 @@
-- name: Connect NetBird and Keep Alive
-  env:
-    NB_SETUP_KEY: ${{ secrets.NETBIRD_SETUP_KEY }}
-  shell: powershell
-  run: |
-    # Install and start NetBird
-    winget install NetBird.NetBird
-    netbird up --setup-key "$env:NB_SETUP_KEY"
-    
-    # Verify IP allocation
-    $nbIp = (netbird status | Select-String -Pattern "NetBird IP: (\d+\.\d+\.\d+\.\d+)").Matches.Groups[1].Value
-    Write-Host "NetBird IP: $nbIp"
-    
-    # FORCE Windows to keep the RDP session alive or the runner closes the pipe
-    while ($true) {
-        Start-Sleep -Seconds 60
-    }
+name: NetBird RDP Runner
+
+on:
+  workflow_dispatch: # Allows you to trigger this manually from the GitHub UI
+
+jobs:
+  rdp-session:
+    runs-on: windows-latest
+    steps:
+      - name: Configure Windows Host RDP
+        shell: powershell
+        run: |
+          # Enable Remote Desktop in the Registry
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          
+          # Allow RDP through Windows Defender Firewall
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          
+          # Force the service to start
+          Set-Service -Name "TermService" -StartupType Automatic
+          Start-Service -Name "TermService" -WarningAction SilentlyContinue
+
+      - name: Connect NetBird and Keep Alive
+        env:
+          NB_SETUP_KEY: ${{ secrets.NETBIRD_SETUP_KEY }}
+        shell: powershell
+        run: |
+          # Install and start NetBird
+          winget install NetBird.NetBird --accept-source-agreements --accept-package-agreements
+          
+          # Start NetBird and connect using your setup key
+          netbird up --setup-key "$env:NB_SETUP_KEY"
+          
+          # Print the assigned IP address to the log
+          netbird status
+          
+          # Keep the runner alive so the RDP session doesn't instantly close
+          Write-Host "Runner is ready for RDP connection at the NetBird IP shown above."
+          while ($true) {
+              Start-Sleep -Seconds 60
+          }
