@@ -1,7 +1,7 @@
 name: NetBird RDP Runner
 
 on:
-  workflow_dispatch: # Allows you to trigger this manually from the GitHub UI
+  workflow_dispatch: 
 
 jobs:
   rdp-session:
